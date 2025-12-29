@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="description" content="Mapa infinito para proyectos del día">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <title>📋 Mapa Diario</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            overflow: hidden;
+            background: #1a1a2e;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: none;
+        }
+        
+        /* Panel de control superior */
+        .control-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(26, 26, 46, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 10px;
+            z-index: 1000;
+            border-bottom: 2px solid #667eea;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        .btn-nav {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-zoom {
+            background: #48bb78;
+            color: white;
+            font-size: 16px;
+            padding: 10px 12px;
+        }
+        
+        .btn-edit {
+            background: #ed8936;
+            color: white;
+        }
+        
+        .btn-add {
+            background: #38b2ac;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        
+        .separator {
+            width: 2px;
+            height: 25px;
+            background: #667eea;
+        }
+        
+        .zoom-level {
+            color: white;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        
+        /* Canvas infinito */
+        .canvas-container {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            cursor: grab;
+            background: 
+                linear-gradient(rgba(102, 126, 234, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(102, 126, 234, 0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            background-position: 0 0;
+        }
+        
+        .canvas-container:active {
+            cursor: grabbing;
+        }
+        
+        .canvas {
+            position: absolute;
+            transform-origin: 0 0;
+            will-change: transform;
+        }
+        
+        /* Cajas de diagramas */
+        .diagram-box {
+            position: absolute;
+            background: linear-gradient(135deg, #1a1f3a 0%, #0f1420 100%);
+            border: 3px solid #00ff41;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 0 25px rgba(0, 255, 65, 0.3);
+            min-width: 300px;
+            max-width: 500px;
+            touch-action: none;
+        }
+        
+        .diagram-box:active {
+            box-shadow: 0 0 40px rgba(0, 255, 65, 0.6);
+        }
+        
+        .diagram-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .diagram-title {
+            color: #00ffff;
+            font-size: 1.2em;
+            font-weight: bold;
+            text-shadow: 0 0 8px #00ffff;
+        }
+        
+        .diagram-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .icon-btn {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        
+        .icon-btn:active {
+            transform: scale(0.9);
+        }
+        
+        .icon-btn.delete:active {
+            background: #f56565;
+        }
+        
+        .icon-btn.edit:active {
+            background: #ed8936;
+        }
+        
+        .icon-btn.move {
+            cursor: move;
+        }
+        
+        .icon-btn.move:active {
+            background: #48bb78;
+        }
+        
+        .diagram-content {
+            color: #00ff41;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow-x: auto;
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: #1a1f3a;
+            padding: 25px;
+            border-radius: 15px;
+            max-width: 600px;
+            width: 100%;
+            color: white;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-content h2 {
+            color: #00ffff;
+            margin-bottom: 20px;
+        }
+        
+        .modal-content input,
+        .modal-content textarea {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            background: rgba(255,255,255,0.1);
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            color: white;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        .modal-content textarea {
+            min-height: 200px;
+            resize: vertical;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+        }
+        
+        /* Mensaje bienvenida */
+        .welcome {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, #1a1f3a 0%, #0f1420 100%);
+            border: 3px solid #00ffff;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            color: white;
+            box-shadow: 0 0 50px rgba(0, 255, 255, 0.5);
+            z-index: 100;
+            max-width: 90%;
+        }
+        
+        .welcome h1 {
+            color: #00ffff;
+            font-size: 1.8em;
+            margin-bottom: 15px;
+            text-shadow: 0 0 15px #00ffff;
+        }
+        
+        .welcome p {
+            color: #00ff41;
+            margin-bottom: 8px;
+        }
+        
+        .welcome.hidden {
+            display: none;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .control-panel {
+                padding: 8px;
+                gap: 5px;
+            }
+            
+            .btn {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            
+            .separator {
+                display: none;
+            }
+            
+            .diagram-box {
+                min-width: 250px;
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Panel de control -->
+    <div class="control-panel">
+        <button class="btn btn-add" onclick="openAddModal()">➕</button>
+        <button class="btn btn-nav" onclick="autoArrange()">📐</button>
+        <button class="btn btn-nav" onclick="arrangeNew()">📦</button>
+        <button class="btn btn-edit" onclick="saveOrder()">💾</button>
+        <button class="btn btn-zoom" onclick="restoreOrder()">↩️</button>
+        
+        <div class="separator"></div>
+        
+        <button class="btn btn-zoom" onclick="zoomIn()">+</button>
+        <span class="zoom-level" id="zoomLevel">100%</span>
+        <button class="btn btn-zoom" onclick="zoomOut()">-</button>
+        
+        <div class="separator"></div>
+        
+        <button class="btn btn-add" onclick="exportData()">📥</button>
+        <button class="btn btn-edit" onclick="document.getElementById('importFile').click()">📤</button>
+        <button class="btn btn-danger" onclick="clearAll()">🗑️</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+    
+    <!-- Canvas infinito -->
+    <div class="canvas-container" id="canvasContainer">
+        <div class="canvas" id="canvas"></div>
+    </div>
+    
+    <!-- Mensaje de bienvenida -->
+    <div class="welcome" id="welcomeMessage">
+        <h1>📋 Mapa Diario</h1>
+        <p>✅ Canvas infinito listo</p>
+        <p>✅ Funciona en PC y móvil</p>
+        <p>✅ Auto-guardado activo</p>
+        <p style="margin-top: 15px; color: #667eea;">Toca "➕" para añadir bloques</p>
+        <button class="btn btn-add" onclick="hideWelcome()" style="margin-top: 15px;">Comenzar</button>
+    </div>
+    
+    <!-- Modal -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Añadir Bloque</h2>
+            <input type="text" id="diagramTitle" placeholder="Título">
+            <textarea id="diagramContent" placeholder="Contenido (texto, código, diagramas...)"></textarea>
+            <div class="modal-buttons">
+                <button class="btn btn-nav" onclick="closeModal()">Cancelar</button>
+                <button class="btn btn-add" onclick="saveDiagram()">Guardar</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let diagrams = [];
+        let zoom = 1;
+        let panX = 0;
+        let panY = 0;
+        let isDragging = false;
+        let startX, startY;
+        let editingIndex = -1;
+        let movingIndex = -1;
+        let isDraggingDiagram = false;
+        let savedOrder = null;
+        
+        const canvas = document.getElementById('canvas');
+        const container = document.getElementById('canvasContainer');
+        
+        // Renderizar
+        function render() {
+            canvas.innerHTML = '';
+            diagrams.forEach((diagram, index) => {
+                const box = document.createElement('div');
+                box.className = 'diagram-box';
+                box.style.left = diagram.x + 'px';
+                box.style.top = diagram.y + 'px';
+                
+                box.innerHTML = `
+                    <div class="diagram-header">
+                        <div class="diagram-title">${escapeHtml(diagram.title)}</div>
+                        <div class="diagram-actions">
+                            <button class="icon-btn move" ontouchstart="startMoving(event, ${index})" onmousedown="startMoving(event, ${index})">✋</button>
+                            <button class="icon-btn edit" onclick="editDiagram(${index})">✏️</button>
+                            <button class="icon-btn delete" onclick="deleteDiagram(${index})">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="diagram-content">${escapeHtml(diagram.content)}</div>
+                `;
+                
+                canvas.appendChild(box);
+            });
+            
+            saveToLocalStorage();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Zoom
+        function zoomIn() {
+            zoomAt(1.2);
+        }
+        
+        function zoomOut() {
+            zoomAt(1 / 1.2);
+        }
+        
+        function zoomAt(factor) {
+            const oldZoom = zoom;
+            zoom = Math.min(Math.max(zoom * factor, 0.3), 3);
+            
+            if (zoom !== oldZoom) {
+                const centerX = window.innerWidth / 2;
+                const centerY = (window.innerHeight - 60) / 2;
+                const worldX = (centerX - panX) / oldZoom;
+                const worldY = (centerY - panY) / oldZoom;
+                panX = centerX - worldX * zoom;
+                panY = centerY - worldY * zoom;
+                updateZoom();
+            }
+        }
+        
+        function updateZoom() {
+            document.getElementById('zoomLevel').textContent = Math.round(zoom * 100) + '%';
+            updateTransform();
+        }
+        
+        function updateTransform() {
+            canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+        }
+        
+        // Touch y Mouse
+        function handleStart(e) {
+            const touch = e.touches ? e.touches[0] : e;
+            if ((e.target === container || e.target === canvas) && !isDraggingDiagram) {
+                isDragging = true;
+                startX = touch.clientX - panX;
+                startY = touch.clientY - panY;
+            }
+        }
+        
+        function handleMove(e) {
+            const touch = e.touches ? e.touches[0] : e;
+            if (isDragging && !isDraggingDiagram) {
+                panX = touch.clientX - startX;
+                panY = touch.clientY - startY;
+                updateTransform();
+            } else if (isDraggingDiagram && movingIndex >= 0) {
+                const rect = container.getBoundingClientRect();
+                diagrams[movingIndex].x = (touch.clientX - rect.left - panX) / zoom;
+                diagrams[movingIndex].y = (touch.clientY - rect.top - panY) / zoom;
+                render();
+            }
+        }
+        
+        function handleEnd() {
+            isDragging = false;
+            isDraggingDiagram = false;
+            movingIndex = -1;
+        }
+        
+        container.addEventListener('mousedown', handleStart);
+        container.addEventListener('mousemove', handleMove);
+        container.addEventListener('mouseup', handleEnd);
+        container.addEventListener('touchstart', handleStart, { passive: false });
+        container.addEventListener('touchmove', handleMove, { passive: false });
+        container.addEventListener('touchend', handleEnd);
+        
+        // Zoom rueda
+        container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const oldZoom = zoom;
+            zoom = e.deltaY < 0 ? Math.min(zoom * 1.1, 3) : Math.max(zoom / 1.1, 0.3);
+            
+            if (zoom !== oldZoom) {
+                const rect = container.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                const worldX = (mouseX - panX) / oldZoom;
+                const worldY = (mouseY - panY) / oldZoom;
+                panX = mouseX - worldX * zoom;
+                panY = mouseY - worldY * zoom;
+                updateZoom();
+            }
+        }, { passive: false });
+        
+        // Modal
+        function openAddModal() {
+            hideWelcome();
+            editingIndex = -1;
+            document.getElementById('modalTitle').textContent = 'Añadir Bloque';
+            document.getElementById('diagramTitle').value = '';
+            document.getElementById('diagramContent').value = '';
+            document.getElementById('modal').classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('modal').classList.remove('active');
+        }
+        
+        function saveDiagram() {
+            const title = document.getElementById('diagramTitle').value;
+            const content = document.getElementById('diagramContent').value;
+            
+            if (!title || !content) {
+                alert('⚠️ Completa título y contenido');
+                return;
+            }
+            
+            if (editingIndex >= 0) {
+                diagrams[editingIndex].title = title;
+                diagrams[editingIndex].content = content;
+            } else {
+                diagrams.push({
+                    title: title,
+                    content: content,
+                    x: -panX / zoom + window.innerWidth / (2 * zoom),
+                    y: -panY / zoom + window.innerHeight / (2 * zoom),
+                    locked: false
+                });
+            }
+            
+            render();
+            closeModal();
+        }
+        
+        function editDiagram(index) {
+            editingIndex = index;
+            const diagram = diagrams[index];
+            document.getElementById('modalTitle').textContent = 'Editar Bloque';
+            document.getElementById('diagramTitle').value = diagram.title;
+            document.getElementById('diagramContent').value = diagram.content;
+            document.getElementById('modal').classList.add('active');
+        }
+        
+        function deleteDiagram(index) {
+            if (confirm('¿Borrar este bloque?')) {
+                diagrams.splice(index, 1);
+                render();
+            }
+        }
+        
+        function startMoving(event, index) {
+            event.stopPropagation();
+            event.preventDefault();
+            isDraggingDiagram = true;
+            movingIndex = index;
+        }
+        
+        function autoArrange() {
+            if (diagrams.length === 0) return;
+            const cols = 3;
+            diagrams.forEach((diagram, index) => {
+                const row = Math.floor(index / cols);
+                const col = index % cols;
+                diagram.x = 100 + (col * 600);
+                diagram.y = 100 + (row * 500);
+                diagram.locked = false;
+            });
+            render();
+        }
+        
+        function arrangeNew() {
+            const locked = diagrams.filter(d => d.locked);
+            const unlocked = diagrams.filter(d => !d.locked);
+            if (unlocked.length === 0) {
+                alert('ℹ️ No hay bloques nuevos');
+                return;
+            }
+            
+            const occupied = new Set();
+            locked.forEach(d => {
+                const gridX = Math.round((d.x - 100) / 600);
+                const gridY = Math.round((d.y - 100) / 500);
+                occupied.add(`${gridX},${gridY}`);
+            });
+            
+            let pos = 0;
+            unlocked.forEach(diagram => {
+                while (true) {
+                    const row = Math.floor(pos / 3);
+                    const col = pos % 3;
+                    const key = `${col},${row}`;
+                    if (!occupied.has(key)) {
+                        diagram.x = 100 + (col * 600);
+                        diagram.y = 100 + (row * 500);
+                        occupied.add(key);
+                        pos++;
+                        break;
+                    }
+                    pos++;
+                }
+            });
+            render();
+        }
+        
+        function saveOrder() {
+            diagrams.forEach(d => d.locked = true);
+            savedOrder = diagrams.map(d => ({...d}));
+            showFeedback('💾 Guardado!');
+        }
+        
+        function restoreOrder() {
+            if (!savedOrder) {
+                alert('⚠️ No hay orden guardado');
+                return;
+            }
+            if (confirm('¿Restaurar orden guardado?')) {
+                diagrams = savedOrder.map(d => ({...d}));
+                render();
+                showFeedback('✅ Restaurado!');
+            }
+        }
+        
+        function clearAll() {
+            if (confirm('⚠️ ¿BORRAR TODO?\n\nEsto eliminará todos los bloques.')) {
+                diagrams = [];
+                savedOrder = null;
+                render();
+                showFeedback('🗑️ Todo borrado');
+            }
+        }
+        
+        function showFeedback(msg) {
+            const feedback = document.createElement('div');
+            feedback.textContent = msg;
+            feedback.style.cssText = `
+                position: fixed;
+                top: 70px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #48bb78;
+                color: white;
+                padding: 12px 24px;
+                border-radius: 8px;
+                z-index: 3000;
+                font-weight: bold;
+            `;
+            document.body.appendChild(feedback);
+            setTimeout(() => feedback.remove(), 2000);
+        }
+        
+        // Persistencia
+        function saveToLocalStorage() {
+            localStorage.setItem('mapaDiario', JSON.stringify({
+                diagrams, savedOrder, zoom, panX, panY
+            }));
+        }
+        
+        function loadFromLocalStorage() {
+            const stored = localStorage.getItem('mapaDiario');
+            if (stored) {
+                try {
+                    const data = JSON.parse(stored);
+                    diagrams = data.diagrams || [];
+                    savedOrder = data.savedOrder || null;
+                    zoom = data.zoom || 1;
+                    panX = data.panX || 0;
+                    panY = data.panY || 0;
+                    if (diagrams.length > 0) hideWelcome();
+                } catch (e) {
+                    console.error('Error cargando:', e);
+                }
+            }
+        }
+        
+        function exportData() {
+            if (diagrams.length === 0) {
+                alert('⚠️ No hay bloques para exportar');
+                return;
+            }
+            const data = {
+                diagrams,
+                savedOrder,
+                exportDate: new Date().toISOString(),
+                version: '1.0'
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mapa-diario-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showFeedback('📥 Exportado!');
+        }
+        
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    const msg = diagrams.length > 0 
+                        ? '⚠️ Importar reemplazará todo.\n¿Continuar?'
+                        : '¿Importar datos?';
+                    
+                    if (confirm(msg)) {
+                        diagrams = data.diagrams || [];
+                        savedOrder = data.savedOrder || null;
+                        render();
+                        updateTransform();
+                        updateZoom();
+                        hideWelcome();
+                        showFeedback('✅ Importado!');
+                    }
+                } catch (error) {
+                    alert('❌ Error: ' + error.message);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+        
+        function hideWelcome() {
+            document.getElementById('welcomeMessage').classList.add('hidden');
+        }
+        
+        // Registrar Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').then(() => {
+                console.log('✅ PWA activada');
+            }).catch(err => {
+                console.log('❌ Error SW:', err);
+            });
+        }
+        
+        // Inicializar
+        loadFromLocalStorage();
+        render();
+        updateTransform();
+        updateZoom();
+    </script>
+</body>
+</html>
